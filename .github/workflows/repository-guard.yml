@@ -1,0 +1,58 @@
+name: Repository Guard
+
+on:
+  pull_request:
+    branches: [main]
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: repository-guard-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  guard:
+    name: Repository guard
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - name: Checkout
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          fetch-depth: 2
+          persist-credentials: false
+
+      - name: Check whitespace in latest change
+        shell: bash
+        run: |
+          set -euo pipefail
+          if git rev-parse --verify HEAD^ >/dev/null 2>&1; then
+            git diff --check HEAD^ HEAD
+          else
+            git show --check --oneline HEAD
+          fi
+
+      - name: Reject tracked environment files
+        shell: bash
+        run: |
+          set -euo pipefail
+          bad_files=()
+          while IFS= read -r -d '' file; do
+            base_name="${file##*/}"
+            case "$base_name" in
+              .env|.env.*)
+                [[ "$base_name" == ".env.example" ]] || bad_files+=("$file")
+                ;;
+            esac
+          done < <(git ls-files -z)
+          if (( ${#bad_files[@]} > 0 )); then
+            printf 'Remove tracked environment file: %s\n' "${bad_files[@]}"
+            exit 1
+          fi
+
+      - name: Verify README is present
+        run: test -s README.md
