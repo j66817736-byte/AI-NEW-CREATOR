@@ -18,7 +18,7 @@ jobs:
   guard:
     name: Repository guard
     runs-on: ubuntu-latest
-    timeout-minutes: 5
+    timeout-minutes: 10
     steps:
       - name: Checkout
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
@@ -56,3 +56,18 @@ jobs:
 
       - name: Verify README is present
         run: test -s README.md
+
+      - name: Set up Node.js for npm audit
+        if: ${{ hashFiles('package.json') != '' && hashFiles('package-lock.json') != '' }}
+        uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version: 22
+          cache: npm
+
+      - name: Install locked npm dependencies
+        if: ${{ hashFiles('package.json') != '' && hashFiles('package-lock.json') != '' }}
+        run: npm ci
+
+      - name: Audit npm dependencies
+        if: ${{ hashFiles('package.json') != '' && hashFiles('package-lock.json') != '' }}
+        run: npm audit --audit-level=high
